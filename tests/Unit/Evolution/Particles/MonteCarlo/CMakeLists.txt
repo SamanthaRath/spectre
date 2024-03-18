@@ -24,6 +24,7 @@ target_link_libraries(
   DataStructures
   GeneralRelativity
   GeneralRelativityHelpers
+  GeneralRelativitySolutions
   Hydro
   HydroHelpers
   MonteCarlo
