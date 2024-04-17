@@ -195,9 +195,9 @@ void test_evolve_kerr() {
   gr::Solutions::KerrSchild solution(mass, spin, center);
 
   // Set domain and coordintes
-  const Mesh<3> mesh(2, Spectral::Basis::FiniteDifference,
+  const Mesh<3> mesh(3, Spectral::Basis::FiniteDifference,
                      Spectral::Quadrature::CellCentered);
-  const DataVector zero_dv(mesh.number_of_grid_points());
+  const DataVector zero_dv(mesh.number_of_grid_points(),0.0);
   const auto mesh_coordinates = spatial_coords_logical(mesh);
   const auto inertial_coordinates = spatial_coords_inertial(mesh_coordinates);
   // Mesh velocity set to std::null for now
@@ -247,7 +247,7 @@ void test_evolve_kerr() {
       make_with_value<tnsr::i<DataVector, 3, Frame::Inertial>>(lapse, 0.0);
 
   // Initialize packet on the x-axis, moving in the y-direction
-  Particles::MonteCarlo::Packet packet(4, 1.0, 0, 0.0, 6.5, 0.0, 0.0, 1.0, 0.0,
+  Particles::MonteCarlo::Packet packet(0, 1.0, 5, 0.0, 6.5, 0.0, 0.0, 1.0, 0.0,
                                        1.0, 0.0);
   packet.renormalize_momentum(inverse_spatial_metric, lapse);
 
@@ -305,9 +305,9 @@ void test_evolve_kerr() {
       &coupling_rho_ye, final_time, mesh, mesh_coordinates,
       absorption_opacity, scattering_opacity, energy_at_bin_center,
       lorentz_factor, lower_spatial_four_velocity, lapse, shift, deriv_lapse,
-      deriv_shift, deriv_inverse_spatial_metric, inverse_spatial_metric,
-      mesh_velocity, inverse_jacobian, jacobian_inertial_to_fluid,
-      inverse_jacobian_inertial_to_fluid);
+      deriv_shift, deriv_inverse_spatial_metric, spatial_metric,
+      inverse_spatial_metric, mesh_velocity, inverse_jacobian,
+      jacobian_inertial_to_fluid, inverse_jacobian_inertial_to_fluid);
 
   Parallel::printf("%.5f %.5f %.5f %.5f \n", packets[0].time,
                    packets[0].coordinates.get(0), packets[0].coordinates.get(1),
