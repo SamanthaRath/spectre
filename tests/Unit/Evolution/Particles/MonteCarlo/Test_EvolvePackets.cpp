@@ -182,6 +182,11 @@ tnsr::I<DataVector, 3, Frame::Inertial> spatial_coords_inertial(
   x.get(2) = logical_coords.get(2);
   return x;
 }
+// Function to calculate p_phi
+double calculate_p_phi(const Particles::MonteCarlo::Packet& packet) {
+  return -packet.momentum.get(0) * packet.coordinates.get(1) +
+         packet.momentum.get(1) * (packet.coordinates.get(0) + 6.0);
+}
 
 void test_evolve_kerr() {
   MAKE_GENERATOR(generator);
@@ -195,7 +200,7 @@ void test_evolve_kerr() {
   gr::Solutions::KerrSchild solution(mass, spin, center);
 
   // Set domain and coordintes
-  const Mesh<3> mesh(3, Spectral::Basis::FiniteDifference,
+  const Mesh<3> mesh(16, Spectral::Basis::FiniteDifference,
                      Spectral::Quadrature::CellCentered);
   const DataVector zero_dv(mesh.number_of_grid_points(),0.0);
   const auto mesh_coordinates = spatial_coords_logical(mesh);
@@ -247,7 +252,7 @@ void test_evolve_kerr() {
       make_with_value<tnsr::i<DataVector, 3, Frame::Inertial>>(lapse, 0.0);
 
   // Initialize packet on the x-axis, moving in the y-direction
-  Particles::MonteCarlo::Packet packet(0, 1.0, 5, 0.0, 6.5, 0.0, 0.0, 1.0, 0.0,
+  Particles::MonteCarlo::Packet packet(0, 1.0, 5, 0.0, 0.5, 0.0, 0.0, 1.0, 0.0,
                                        1.0, 0.0);
   packet.renormalize_momentum(inverse_spatial_metric, lapse);
 
@@ -294,24 +299,45 @@ void test_evolve_kerr() {
 
   std::vector<Particles::MonteCarlo::Packet> packets{packet};
   Particles::MonteCarlo::TemplatedLocalFunctions<2, 2> MonteCarloStruct;
+  // Getting N and CFL constant
+  size_t N = mesh.extents(0);
+  double cfl_constant = 1;
   const double final_time = 1.0;
+  const double dt_step = cfl_constant / (2.0 * N);
+  double current_time = 0.0;
+
+  // Store initial value
+  double initial_p_phi = calculate_p_phi(packet);
+  Parallel::printf("Initial p_phi: %.5f\n", initial_p_phi);
+
+  Parallel::printf("%.5f %.5f %.5f %.5f \n", packets[0].time,
+                   packets[0].coordinates.get(0), packets[0].coordinates.get(1),
+                   packets[0].coordinates.get(2));
+  while (current_time < final_time) {
+    double dt = std::min(dt_step, final_time - current_time);
+    MonteCarloStruct.evolve_packets(
+        &packets, &generator, &coupling_tilde_tau, &coupling_tilde_s,
+        &coupling_rho_ye, current_time + dt, mesh, mesh_coordinates,
+        absorption_opacity, scattering_opacity, energy_at_bin_center,
+        lorentz_factor, lower_spatial_four_velocity, lapse, shift, deriv_lapse,
+        deriv_shift, deriv_inverse_spatial_metric, spatial_metric,
+        inverse_spatial_metric, mesh_velocity, inverse_jacobian,
+        jacobian_inertial_to_fluid, inverse_jacobian_inertial_to_fluid);
+    current_time += dt;
+    Parallel::printf(
+        "%.5f %.5f %.5f %.5f %.2d\n", packets[0].time,
+        packets[0].coordinates.get(0), packets[0].coordinates.get(1),
+        packets[0].coordinates.get(2), packets[0].index_of_closest_grid_point);
+    double p_phi = calculate_p_phi(packets[0]);
+    Parallel::printf("p_phi: %.5f\n", p_phi);
+  }
 
   Parallel::printf("%.5f %.5f %.5f %.5f \n", packets[0].time,
                    packets[0].coordinates.get(0), packets[0].coordinates.get(1),
                    packets[0].coordinates.get(2));
 
-  MonteCarloStruct.evolve_packets(
-      &packets, &generator, &coupling_tilde_tau, &coupling_tilde_s,
-      &coupling_rho_ye, final_time, mesh, mesh_coordinates,
-      absorption_opacity, scattering_opacity, energy_at_bin_center,
-      lorentz_factor, lower_spatial_four_velocity, lapse, shift, deriv_lapse,
-      deriv_shift, deriv_inverse_spatial_metric, spatial_metric,
-      inverse_spatial_metric, mesh_velocity, inverse_jacobian,
-      jacobian_inertial_to_fluid, inverse_jacobian_inertial_to_fluid);
-
-  Parallel::printf("%.5f %.5f %.5f %.5f \n", packets[0].time,
-                   packets[0].coordinates.get(0), packets[0].coordinates.get(1),
-                   packets[0].coordinates.get(2));
+  double final_p_phi = calculate_p_phi(packets[0]);
+  Parallel::printf("Final p_phi: %.5f\n", final_p_phi);
 }
 
 }  // namespace
